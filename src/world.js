@@ -98,7 +98,11 @@ export function createWorld(scene){
  for(let i=0;i<treeCount*2;i++){
    const x=(Math.random()-.5)*2300,z=(Math.random()-.5)*1600;
    if(terrainHeight(x,z)<0||Math.abs(x-riverCenterX(z))<24)continue;
-   const y=terrainHeight(x,z),s=.55+Math.random()*1.25,kind=Math.floor(Math.random()*3),j=counts[kind]++;
+   const y=terrainHeight(x,z),biome=biomeAt(x,z,y);
+   if(y<1||biome==='coast'||Math.abs(x-riverCenterX(z))<24)continue;
+   const density=biome==='forest'?.82:biome==='wetland'?.38:.16;
+   if(Math.random()>density)continue;
+   const s=biome==='forest'?.75+Math.random()*1.35:.55+Math.random()*1.05,kind=biome==='highland'?2:Math.floor(Math.random()*3),j=counts[kind]++;
    if(j>=treeCount)continue;
    dummy.position.set(x,y+1.15*s,z);dummy.scale.set(s,s*(.85+Math.random()*.25),s);dummy.rotation.y=Math.random()*Math.PI;dummy.updateMatrix();trunks[kind].setMatrixAt(j,dummy.matrix);
    dummy.position.set(x,y+3.0*s,z);dummy.scale.set(s*(.75+Math.random()*.4),s*(.8+Math.random()*.35),s*(.75+Math.random()*.4));dummy.updateMatrix();leaves[kind].setMatrixAt(j,dummy.matrix);
