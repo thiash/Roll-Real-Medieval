@@ -8,6 +8,13 @@ export function smoothLandMask(x,z){
  const nx=x/(WORLD_W*.5),nz=z/(WORLD_D*.5);
  return Math.pow(Math.abs(nx),3.2)+Math.pow(Math.abs(nz),3.0)+.08*Math.sin(x*.004)+.055*Math.cos(z*.006)+.035*Math.sin((x-z)*.009);
 }
+
+// A natural winding river corridor. The terrain is lowered around it so water is
+// actually inside a valley instead of floating horizontally over the landscape.
+export function riverCenterX(z){
+ const t=(z+760)/1520;
+ return -520+260*Math.sin(t*5.4)+120*Math.sin(t*11.5)+90*t;
+}
 export function terrainHeight(x,z){
  const mask=smoothLandMask(x,z);
  const continental=10*Math.sin(x*.0048)*Math.cos(z*.0042)+6*Math.sin((x+z)*.009)+4*Math.cos((x-z)*.007);
@@ -15,33 +22,100 @@ export function terrainHeight(x,z){
  const ridge=14*Math.pow(Math.max(0,Math.sin(x*.003+z*.004)),3);
  const mountain=20*Math.pow(Math.max(0,Math.sin(x*.006-z*.004)),8);
  const valley=-18*Math.exp(-((x-120)**2+(z+30)**2)/95000);
- return continental+hills+ridge+mountain+valley-Math.max(0,mask-.72)*55;
+ const riverDx=x-riverCenterX(z);
+ const riverBed=-Math.max(0,1-Math.abs(riverDx)/18)**2*7;
+ return continental+hills+ridge+mountain+valley-riverBed*-1-Math.max(0,mask-.72)*55;
 }
+
+function biomeColor(y,x,z){
+ const n=.5+.5*Math.sin(x*.031+z*.017)+.25*Math.sin(x*.071-z*.053);
+ if(y>24)return new THREE.Color().setHSL(.28,.28,.30+.025*n);
+ if(y>13)return new THREE.Color().setHSL(.29,.48,.34+.035*n);
+ if(y<0)return new THREE.Color().setHSL(.30,.38,.28+.035*n);
+ return new THREE.Color().setHSL(.30,.55,.31+.045*n);
+}
+
+function addRiver(scene){
+ const points=72,widths=[],verts=[],indices=[];
+ for(let i=0;i<points;i++){
+   const z=-760+i*(1520/(points-1)),x=riverCenterX(z);
+   const dz=.5,dx=riverCenterX(z+dz)-riverCenterX(z-dz);
+   const len=Math.hypot(dx,2*dz),nx=-(2*dz)/len,nz=dx/len;
+   const width=5.5+2.5*Math.sin(i*.23)**2;
+   const y=terrainHeight(x,z)-.12;
+   verts.push(x+nx*width,y,z+nz*width,x-nx*width,y,z-nz*width);
+   widths.push(y);
+   if(i<points-1){const a=i*2,b=a+1,c=a+2,d=a+3;indices.push(a,b,c,b,d,c);}
+ }
+ const g=new THREE.BufferGeometry();
+ g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
+ g.setIndex(indices);g.computeVertexNormals();
+ const mat=new THREE.MeshStandardMaterial({color:0x397f91,transparent:true,opacity:.9,roughness:.08,metalness:.04,side:THREE.DoubleSide});
+ const mesh=new THREE.Mesh(g,mat);mesh.userData.baseY=verts.filter((_,i)=>i%3===1).slice();scene.add(mesh);
+ return {mesh,base:mesh.userData.baseY};
+}
+
 export function createWorld(scene){
  const geo=new THREE.PlaneGeometry(WORLD_W,WORLD_D,SEG_X,SEG_Z);geo.rotateX(-Math.PI/2);
- const pos=geo.attributes.position;
- for(let i=0;i<pos.count;i++)pos.setY(i,terrainHeight(pos.getX(i),pos.getZ(i)));
- geo.computeVertexNormals();
- const terrain=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0x557d46,roughness:.96}));
- terrain.receiveShadow=true;scene.add(terrain);
-
- const waterMat=new THREE.MeshStandardMaterial({color:0x2f7892,transparent:true,opacity:.92,roughness:.12});
- function water(x,y,z,w,d,rot=0){const g=new THREE.PlaneGeometry(w,d);g.rotateX(-Math.PI/2);g.rotateY(rot);const m=new THREE.Mesh(g,waterMat);m.position.set(x,y,z);m.receiveShadow=true;scene.add(m)}
- water(0,-18,1120,3100,900);water(180,-3,-40,520,70,-.25);water(-360,-4,310,260,190,.55);
-
- const trunkMat=new THREE.MeshStandardMaterial({color:0x5a402c,roughness:1});
- const leafMat=new THREE.MeshStandardMaterial({color:0x2f5534,roughness:1});
- const trunkGeo=new THREE.CylinderGeometry(.18,.28,2.2,6),leafGeo=new THREE.ConeGeometry(1.25,3,7);
- const maxTrees=MOBILE?430:650;
- const trunks=new THREE.InstancedMesh(trunkGeo,trunkMat,maxTrees),leaves=new THREE.InstancedMesh(leafGeo,leafMat,maxTrees);
- const dummy=new THREE.Object3D();let count=0;
- for(let i=0;i<maxTrees;i++){
-   const x=(Math.random()-.5)*2300,z=(Math.random()-.5)*1600;
-   if(Math.abs(z+40)<55||(x>20&&x<360&&z>-120&&z<80)||terrainHeight(x,z)<-2)continue;
-   const s=.7+Math.random()*.7,y=terrainHeight(x,z);
-   dummy.position.set(x,y+1.1*s,z);dummy.scale.set(s,s,s);dummy.rotation.set(0,Math.random()*Math.PI,0);dummy.updateMatrix();trunks.setMatrixAt(count,dummy.matrix);
-   dummy.position.set(x,y+3*s,z);dummy.scale.set(s*(.82+Math.random()*.32),s,s*(.82+Math.random()*.32));dummy.updateMatrix();leaves.setMatrixAt(count,dummy.matrix);count++;
+ const pos=geo.attributes.position,colors=[];
+ for(let i=0;i<pos.count;i++){
+   const x=pos.getX(i),z=pos.getZ(i),y=terrainHeight(x,z);pos.setY(i,y);
+   const c=biomeColor(y,x,z);colors.push(c.r,c.g,c.b);
  }
- trunks.count=leaves.count=count;trunks.castShadow=trunks.receiveShadow=true;leaves.castShadow=leaves.receiveShadow=true;scene.add(trunks,leaves);
- return {terrain};
+ geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geo.computeVertexNormals();
+ const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.98,metalness:0});
+ const terrain=new THREE.Mesh(geo,terrainMat);terrain.receiveShadow=true;scene.add(terrain);
+
+ const waterMat=new THREE.MeshStandardMaterial({color:0x2f7892,transparent:true,opacity:.9,roughness:.1,metalness:.02,side:THREE.DoubleSide});
+ function lake(x,y,z,w,d,rot=0){const g=new THREE.PlaneGeometry(w,d);g.rotateX(-Math.PI/2);g.rotateY(rot);const m=new THREE.Mesh(g,waterMat);m.position.set(x,y,z);m.receiveShadow=true;scene.add(m)}
+ lake(0,-18,1120,3100,900);lake(180,-4,-40,520,70,-.25);lake(-360,-5,310,260,190,.55);
+ const river=addRiver(scene);
+
+ const trunkMats=[
+  new THREE.MeshStandardMaterial({color:0x5a402c,roughness:1}),
+  new THREE.MeshStandardMaterial({color:0x6b4a31,roughness:1})
+ ];
+ const leafMats=[
+  new THREE.MeshStandardMaterial({color:0x315c38,roughness:1}),
+  new THREE.MeshStandardMaterial({color:0x416b35,roughness:1}),
+  new THREE.MeshStandardMaterial({color:0x58733a,roughness:1})
+ ];
+ const treeCount=MOBILE?360:560,dummy=new THREE.Object3D();
+ const trunks=trunkMats.map(m=>new THREE.InstancedMesh(new THREE.CylinderGeometry(.16,.30,2.4,6),m,treeCount));
+ const leaves=leafMats.map(m=>new THREE.InstancedMesh(new THREE.ConeGeometry(1.2,3.1,7),m,treeCount));
+ let counts=[0,0,0];
+ for(let i=0;i<treeCount*2;i++){
+   const x=(Math.random()-.5)*2300,z=(Math.random()-.5)*1600;
+   if(terrainHeight(x,z)<0||Math.abs(x-riverCenterX(z))<24)continue;
+   const y=terrainHeight(x,z),s=.55+Math.random()*1.25,kind=Math.floor(Math.random()*3),j=counts[kind]++;
+   if(j>=treeCount)continue;
+   dummy.position.set(x,y+1.15*s,z);dummy.scale.set(s,s*(.85+Math.random()*.25),s);dummy.rotation.y=Math.random()*Math.PI;dummy.updateMatrix();trunks[kind].setMatrixAt(j,dummy.matrix);
+   dummy.position.set(x,y+3.0*s,z);dummy.scale.set(s*(.75+Math.random()*.4),s*(.8+Math.random()*.35),s*(.75+Math.random()*.4));dummy.updateMatrix();leaves[kind].setMatrixAt(j,dummy.matrix);
+ }
+ for(let k=0;k<3;k++){trunks[k].count=counts[k];leaves[k].count=counts[k];trunks[k].castShadow=!MOBILE;leaves[k].castShadow=!MOBILE;scene.add(trunks[k],leaves[k]);}
+
+ const bushGeo=new THREE.IcosahedronGeometry(1,1);
+ const bushMat=new THREE.MeshStandardMaterial({color:0x496f38,roughness:1});
+ const bushes=new THREE.InstancedMesh(bushGeo,bushMat,MOBILE?180:300),rocks=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0),new THREE.MeshStandardMaterial({color:0x77756b,roughness:1}),MOBILE?120:220);
+ let bc=0,rc=0;
+ for(let i=0;i<(MOBILE?300:500);i++){
+   const x=(Math.random()-.5)*2350,z=(Math.random()-.5)*1650,y=terrainHeight(x,z);
+   if(y<0||Math.abs(x-riverCenterX(z))<25)continue;
+   if(i%2===0&&bc<bushes.count){const s=.35+Math.random()*.8;dummy.position.set(x,y+s*.35,z);dummy.scale.set(s*1.3,s,s);dummy.rotation.set(Math.random(),Math.random(),Math.random());dummy.updateMatrix();bushes.setMatrixAt(bc++,dummy.matrix);}
+   else if(rc<rocks.count){const s=.2+Math.random()*.8;dummy.position.set(x,y+s*.45,z);dummy.scale.set(s*1.3,s*.7,s);dummy.rotation.set(Math.random(),Math.random(),Math.random());dummy.updateMatrix();rocks.setMatrixAt(rc++,dummy.matrix);}
+ }
+ bushes.count=bc;rocks.count=rc;scene.add(bushes,rocks);
+
+ const grassGeo=new THREE.ConeGeometry(.045,.5,4);
+ const grassMat=new THREE.MeshStandardMaterial({color:0x638b45,roughness:1});
+ const grass=new THREE.InstancedMesh(grassGeo,grassMat,MOBILE?700:1300);let gc=0;
+ for(let i=0;i<grass.count;i++){const x=(Math.random()-.5)*2400,z=(Math.random()-.5)*1700,y=terrainHeight(x,z);if(y<0||Math.abs(x-riverCenterX(z))<22)continue;const s=.5+Math.random()*1.4;dummy.position.set(x,y+.25*s,z);dummy.scale.set(s*.7,s,s*.7);dummy.rotation.y=Math.random()*Math.PI;dummy.updateMatrix();grass.setMatrixAt(gc++,dummy.matrix);}
+ grass.count=gc;scene.add(grass);
+
+ return {terrain,river};
+}
+export function updateWorld(world,time){
+ const p=world.river.mesh.geometry.attributes.position;
+ for(let i=0;i<p.count;i++){const base=world.river.base[i];p.setY(i,base+Math.sin(time*2.2+i*.55)*.055);}
+ p.needsUpdate=true;
 }
