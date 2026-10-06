@@ -7,7 +7,7 @@ export function createPlayer(scene){
  player.position.set(0,terrainHeight(0,0)+.05,0);player.traverse(o=>{if(o.isMesh)o.castShadow=true});scene.add(player);return player;
 }
 export function updatePlayer(player,move,keys,dt){
- let mx=-move.x+(keys.d?1:0)-(keys.a?1:0),mz=-move.y+(keys.s?1:0)-(keys.w?1:0);
+ let mx=move.x+(keys.d?1:0)-(keys.a?1:0),mz=move.y+(keys.s?1:0)-(keys.w?1:0);
  const len=Math.hypot(mx,mz);if(len>1){mx/=len;mz/=len}
  const speed=9;
  player.position.x=THREE.MathUtils.clamp(player.position.x+mx*speed*dt,-WORLD_W*.48,WORLD_W*.48);
