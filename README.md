@@ -1,20 +1,31 @@
 # Roll Real Medieval
 
-Erster spielbarer Prototyp der 3D-Welt.
+Spielbarer 3D-Medieval-Prototyp für Desktop und mobile Geräte.
 
-## Aktueller Stand
-- Dreidimensionale Landschaft mit Hügeln, Bergen und Tälern
-- Wasserflächen als Grundlage für Flüsse, Seen und später Ozeane
-- Platzhalter-Charakter
-- Linker transparenter Joystick: Bewegung
-- Rechter transparenter Joystick: Kamera
-- Touch-Steuerung für mobile Geräte
-- Tastatursteuerung mit WASD als zusätzliche Desktop-Steuerung
+## Architektur
+
+- `index.html` – Einstiegspunkt und mobile Oberfläche
+- `src/main.js` – Spielschleife, Renderer und Kamera
+- `src/world.js` – Terrain, Wasser und Vegetation
+- `src/player.js` – Spielerfigur und Bewegung
+- `src/controls.js` – Touch-Joysticks
+
+## Mobile-Optimierung
+
+- niedrigere Terrain-Auflösung auf Touch-Geräten
+- InstancedMesh für Bäume statt hunderter einzelner Baum-Meshes
+- kein Antialiasing und keine dynamischen Schatten auf mobilen Geräten
+- begrenztes Device-Pixel-Ratio für weniger GPU-Last
+- Desktop erhält höhere Darstellungsqualität
+- beide Touch-Joysticks können gleichzeitig verwendet werden
+- rechter Daumen: Bewegung
+- linker Daumen: Kamera
 
 ## Nächste Ausbaustufen
-1. Größere und vielfältigere Welt
-2. Echte Fluss-/See-/Ozean-Geometrie
-3. Höhlen
-4. Regionen und Biome
-5. Charaktermodell und Animationen
-6. Kollisionen, Physik und Interaktionen
+
+1. echte Fluss-, See- und Küstengeometrie mit korrekten Höhenstufen
+2. Streaming/Chunk-System für die große Welt
+3. Regionen und Biome
+4. Charaktermodell und Animationen
+5. Kollisionen, Physik und Interaktionen
+6. spätere Optimierung von Texturen und Assets
