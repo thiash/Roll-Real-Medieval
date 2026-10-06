@@ -22,8 +22,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#87b7d9;fon
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x8fc5e8);
-scene.fog=new THREE.Fog(0x8fc5e8,220,1500);
+scene.background=new THREE.Color(0x9fc9df);
+scene.fog=new THREE.Fog(0x9fc9df,260,1450);
 const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,2200);
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
@@ -50,14 +50,15 @@ function terrainHeight(x,z){
 }
 for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i);pos.setY(i,terrainHeight(x,z));}
 geo.computeVertexNormals();
-const terrain=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0x4f8b4a,roughness:1}));terrain.receiveShadow=true;scene.add(terrain);
+const terrainMat=new THREE.MeshStandardMaterial({color:0x557d46,roughness:.96,metalness:0});
+const terrain=new THREE.Mesh(geo,terrainMat);terrain.receiveShadow=true;scene.add(terrain);
 
-const waterMat=new THREE.MeshStandardMaterial({color:0x3b91c2,transparent:true,opacity:.68,roughness:.15,metalness:.05});
+const waterMat=new THREE.MeshStandardMaterial({color:0x2f7892,transparent:true,opacity:.88,roughness:.12,metalness:.02});
 function water(x,y,z,w,d,rot=0){const g=new THREE.PlaneGeometry(w,d,1,1);g.rotateX(-Math.PI/2);g.rotateY(rot);const m=new THREE.Mesh(g,waterMat);m.position.set(x,y,z);m.receiveShadow=true;scene.add(m);}
-water(0,-9,1120,3100,900,0);water(180,0,-40,520,70,-.25);water(-360,-1,310,260,190,.55);
+water(0,-18,1120,3100,900,0);water(180,-3,-40,520,70,-.25);water(-360,-4,310,260,190,.55);
 
-const trunkMat=new THREE.MeshStandardMaterial({color:0x65452d}),leafMat=new THREE.MeshStandardMaterial({color:0x315f36});
-function tree(x,z,s=1){const y=terrainHeight(x,z);const t=new THREE.Mesh(new THREE.CylinderGeometry(.18*s,.28*s,2.2*s,7),trunkMat);t.position.set(x,y+1.1*s,z);t.castShadow=true;scene.add(t);const c=new THREE.Mesh(new THREE.ConeGeometry(1.25*s,3*s,8),leafMat);c.position.set(x,y+3*s,z);c.castShadow=true;scene.add(c);}
+const trunkMat=new THREE.MeshStandardMaterial({color:0x5a402c,roughness:1}),leafMat=new THREE.MeshStandardMaterial({color:0x2f5534,roughness:1});
+function tree(x,z,s=1){const y=terrainHeight(x,z);const t=new THREE.Mesh(new THREE.CylinderGeometry(.18*s,.28*s,2.2*s,7),trunkMat);t.position.set(x,y+1.1*s,z);t.castShadow=true;scene.add(t);const c=new THREE.Mesh(new THREE.ConeGeometry(1.25*s,3*s,8),leafMat);c.position.set(x,y+3*s,z);c.scale.x=.82+Math.random()*.32;c.scale.z=.82+Math.random()*.32;c.castShadow=true;scene.add(c);}
 for(let i=0;i<650;i++){const x=(Math.random()-.5)*2300,z=(Math.random()-.5)*1600;if(Math.abs(z+40)<45||(x>20&&x<360&&z>-100&&z<60))continue;tree(x,z,.7+Math.random()*.7);}
 
 const player=new THREE.Group();
