@@ -61,7 +61,7 @@ function addRiver(scene){
  const g=new THREE.BufferGeometry();
  g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
  g.setIndex(indices);g.computeVertexNormals();
- const mat=new THREE.MeshStandardMaterial({color:0x397f91,transparent:true,opacity:.9,roughness:.08,metalness:.04,side:THREE.DoubleSide});
+ const mat=new THREE.MeshStandardMaterial({color:0x397f91,roughness:.14,metalness:.02,side:THREE.DoubleSide});
  const mesh=new THREE.Mesh(g,mat);mesh.userData.baseY=verts.filter((_,i)=>i%3===1).slice();scene.add(mesh);
  return {mesh,base:mesh.userData.baseY};
 }
@@ -84,7 +84,8 @@ export function createWorld(scene){
 
  const trunkMats=[
   new THREE.MeshStandardMaterial({color:0x5a402c,roughness:1}),
-  new THREE.MeshStandardMaterial({color:0x6b4a31,roughness:1})
+  new THREE.MeshStandardMaterial({color:0x6b4a31,roughness:1}),
+  new THREE.MeshStandardMaterial({color:0x4b3828,roughness:1})
  ];
  const leafMats=[
   new THREE.MeshStandardMaterial({color:0x315c38,roughness:1}),
