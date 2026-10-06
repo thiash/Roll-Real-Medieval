@@ -9,9 +9,9 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#87b7d9;fon
 #game{position:fixed;inset:0}
 #hud{position:fixed;top:12px;left:12px;color:white;text-shadow:0 2px 4px #0008;z-index:5;pointer-events:none}
 #hud h1{font-size:18px;margin:0 0 4px}.hint{font-size:12px;opacity:.85}
-.joystick{position:fixed;width:112px;height:112px;border-radius:50%;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 0 25px #0002;z-index:10;display:none;pointer-events:none}
-.stick{position:absolute;width:46px;height:46px;left:33px;top:33px;border-radius:50%;background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.5);box-shadow:0 2px 8px #0004}
-@media (pointer:coarse){.joystick{display:block}.joystick.active{display:block}}
+.joystick{position:fixed;width:112px;height:112px;border-radius:50%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 0 25px #0001;z-index:10;display:none;pointer-events:none}
+.joystick.active{display:block}
+.stick{position:absolute;width:46px;height:46px;left:33px;top:33px;border-radius:50%;background:rgba(255,255,255,.20);border:1px solid rgba(255,255,255,.28);box-shadow:0 2px 8px #0002}
 </style>
 </head>
 <body>
@@ -21,12 +21,10 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#87b7d9;fon
 <div id="rightJoy" class="joystick"><div class="stick"></div></div>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x8fc5e8);
 scene.fog=new THREE.Fog(0x8fc5e8,220,1500);
 const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,2200);
-camera.position.set(0,7,11);
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -37,120 +35,87 @@ const sun=new THREE.DirectionalLight(0xfff3d0,3);sun.position.set(-500,800,400);
 const WORLD_W=2600,WORLD_D=1900,SEG_X=260,SEG_Z=190;
 const geo=new THREE.PlaneGeometry(WORLD_W,WORLD_D,SEG_X,SEG_Z);geo.rotateX(-Math.PI/2);
 const pos=geo.attributes.position;
-
 function smoothLandMask(x,z){
-  const nx=x/(WORLD_W*.5),nz=z/(WORLD_D*.5);
-  const base=Math.pow(Math.abs(nx),3.2)+Math.pow(Math.abs(nz),3.0);
-  const coastNoise=.08*Math.sin(x*.004)+.055*Math.cos(z*.006)+.035*Math.sin((x-z)*.009);
-  return base+coastNoise;
+ const nx=x/(WORLD_W*.5),nz=z/(WORLD_D*.5);
+ return Math.pow(Math.abs(nx),3.2)+Math.pow(Math.abs(nz),3.0)+.08*Math.sin(x*.004)+.055*Math.cos(z*.006)+.035*Math.sin((x-z)*.009);
 }
 function terrainHeight(x,z){
-  const mask=smoothLandMask(x,z);
-  const continental=10*Math.sin(x*.0048)*Math.cos(z*.0042)+6*Math.sin((x+z)*.009)+4*Math.cos((x-z)*.007);
-  const hills=8*Math.sin(x*.018)*Math.cos(z*.015)+5*Math.cos(z*.021);
-  const ridge=14*Math.pow(Math.max(0,Math.sin(x*.003+z*.004)),3);
-  const mountain=20*Math.pow(Math.max(0,Math.sin(x*.006-z*.004)),8);
-  const valley=-18*Math.exp(-((x-120)**2+(z+30)**2)/95000);
-  const coastDrop=Math.max(0,mask-.72)*55;
-  return continental+hills+ridge+mountain+valley-coastDrop;
+ const mask=smoothLandMask(x,z);
+ const continental=10*Math.sin(x*.0048)*Math.cos(z*.0042)+6*Math.sin((x+z)*.009)+4*Math.cos((x-z)*.007);
+ const hills=8*Math.sin(x*.018)*Math.cos(z*.015)+5*Math.cos(z*.021);
+ const ridge=14*Math.pow(Math.max(0,Math.sin(x*.003+z*.004)),3);
+ const mountain=20*Math.pow(Math.max(0,Math.sin(x*.006-z*.004)),8);
+ const valley=-18*Math.exp(-((x-120)**2+(z+30)**2)/95000);
+ return continental+hills+ridge+mountain+valley-Math.max(0,mask-.72)*55;
 }
 for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i);pos.setY(i,terrainHeight(x,z));}
 geo.computeVertexNormals();
-const terrain=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0x4f8b4a,roughness:1}));
-terrain.receiveShadow=true;scene.add(terrain);
+const terrain=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0x4f8b4a,roughness:1}));terrain.receiveShadow=true;scene.add(terrain);
 
 const waterMat=new THREE.MeshStandardMaterial({color:0x3b91c2,transparent:true,opacity:.68,roughness:.15,metalness:.05});
-function water(x,y,z,w,d,rot=0){
- const g=new THREE.PlaneGeometry(w,d,1,1);g.rotateX(-Math.PI/2);g.rotateY(rot);
- const m=new THREE.Mesh(g,waterMat);m.position.set(x,y,z);m.receiveShadow=true;scene.add(m);return m;
-}
-// Large coastal water beyond the continent plus two inland bodies.
-water(0,-9,1120,3100,900,0);
-water(180,0,-40,520,70,-.25);
-water(-360,-1,310,260,190,.55);
+function water(x,y,z,w,d,rot=0){const g=new THREE.PlaneGeometry(w,d,1,1);g.rotateX(-Math.PI/2);g.rotateY(rot);const m=new THREE.Mesh(g,waterMat);m.position.set(x,y,z);m.receiveShadow=true;scene.add(m);}
+water(0,-9,1120,3100,900,0);water(180,0,-40,520,70,-.25);water(-360,-1,310,260,190,.55);
 
-const trunkMat=new THREE.MeshStandardMaterial({color:0x65452d});
-const leafMat=new THREE.MeshStandardMaterial({color:0x315f36});
-function tree(x,z,s=1){
- const y=terrainHeight(x,z);
- const t=new THREE.Mesh(new THREE.CylinderGeometry(.18*s,.28*s,2.2*s,7),trunkMat);
- t.position.set(x,y+1.1*s,z);t.castShadow=true;scene.add(t);
- const c=new THREE.Mesh(new THREE.ConeGeometry(1.25*s,3*s,8),leafMat);
- c.position.set(x,y+3*s,z);c.castShadow=true;scene.add(c);
-}
-for(let i=0;i<650;i++){
- const x=(Math.random()-.5)*2300,z=(Math.random()-.5)*1600;
- if(Math.abs(z+40)<45 || (x>20&&x<360&&z>-100&&z<60))continue;
- tree(x,z,.7+Math.random()*.7);
-}
+const trunkMat=new THREE.MeshStandardMaterial({color:0x65452d}),leafMat=new THREE.MeshStandardMaterial({color:0x315f36});
+function tree(x,z,s=1){const y=terrainHeight(x,z);const t=new THREE.Mesh(new THREE.CylinderGeometry(.18*s,.28*s,2.2*s,7),trunkMat);t.position.set(x,y+1.1*s,z);t.castShadow=true;scene.add(t);const c=new THREE.Mesh(new THREE.ConeGeometry(1.25*s,3*s,8),leafMat);c.position.set(x,y+3*s,z);c.castShadow=true;scene.add(c);}
+for(let i=0;i<650;i++){const x=(Math.random()-.5)*2300,z=(Math.random()-.5)*1600;if(Math.abs(z+40)<45||(x>20&&x<360&&z>-100&&z<60))continue;tree(x,z,.7+Math.random()*.7);}
 
 const player=new THREE.Group();
-const body=new THREE.Mesh(new THREE.CapsuleGeometry(.42,1.0,6,10),new THREE.MeshStandardMaterial({color:0x6e2730}));
-body.position.y=1.15;body.castShadow=true;player.add(body);
-const head=new THREE.Mesh(new THREE.SphereGeometry(.34,12,8),new THREE.MeshStandardMaterial({color:0xd39a72}));
-head.position.y=2.0;head.castShadow=true;player.add(head);
+const body=new THREE.Mesh(new THREE.CapsuleGeometry(.42,1.0,6,10),new THREE.MeshStandardMaterial({color:0x6e2730}));body.position.y=1.15;body.castShadow=true;player.add(body);
+const head=new THREE.Mesh(new THREE.SphereGeometry(.34,12,8),new THREE.MeshStandardMaterial({color:0xd39a72}));head.position.y=2;head.castShadow=true;player.add(head);
 player.position.set(0,terrainHeight(0,0)+.05,0);scene.add(player);
 
 const keys={};addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-const left={x:0,y:0},right={x:0,y:0};
-let activeLeft=null,activeRight=null;
-const leftJoy=document.getElementById('leftJoy'),rightJoy=document.getElementById('rightJoy');
+const move={x:0,y:0},look={x:0,y:0};let moveId=null,lookId=null;
+const moveJoy=document.getElementById('leftJoy'),lookJoy=document.getElementById('rightJoy');
 
-function positionJoy(el,x,y){
- const half=56;
- el.style.left=Math.max(8,Math.min(innerWidth-120,x-half))+'px';
- el.style.top=Math.max(8,Math.min(innerHeight-120,y-half))+'px';
+function activateJoy(el,state,id,x,y){
+ el.style.left=Math.max(8,Math.min(innerWidth-120,x-56))+'px';
+ el.style.top=Math.max(8,Math.min(innerHeight-120,y-56))+'px';
+ el.dataset.id=id;el.classList.add('active');state.x=state.y=0;
 }
-function bindDynamicJoy(el,state,isLeft){
- const stick=el.querySelector('.stick');
- function set(e){
-   const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
-   let dx=e.clientX-cx,dy=e.clientY-cy;const max=34,d=Math.hypot(dx,dy);
-   if(d>max){dx*=max/d;dy*=max/d}
-   state.x=dx/max;state.y=dy/max;stick.style.transform=`translate(${dx}px,${dy}px)`;
- }
- function reset(e){
-   if(e.pointerId===(isLeft?activeLeft:activeRight)){
-     if(isLeft)activeLeft=null;else activeRight=null;
-     state.x=state.y=0;stick.style.transform='translate(0,0)';el.classList.remove('active');
-   }
- }
- el.addEventListener('pointermove',e=>{if(e.pointerId===(isLeft?activeLeft:activeRight))set(e)});
- el.addEventListener('pointerup',reset);el.addEventListener('pointercancel',reset);
-}
-bindDynamicJoy(leftJoy,left,true);bindDynamicJoy(rightJoy,right,false);
-
-addEventListener('pointerdown',e=>{
- if(e.pointerType==='mouse')return;
- const isLeft=e.clientX<innerWidth*.5;
- const el=isLeft?leftJoy:rightJoy,state=isLeft?left:right;
- if(isLeft?activeLeft!==null:activeRight!==null)return;
- if(isLeft)activeLeft=e.pointerId;else activeRight=e.pointerId;
- positionJoy(el,e.clientX,e.clientY);el.classList.add('active');
- try{el.setPointerCapture(e.pointerId)}catch{}
- const r=el.getBoundingClientRect(),cx=r.left+56,cy=r.top+56;
- let dx=e.clientX-cx,dy=e.clientY-cy;const max=34,d=Math.hypot(dx,dy);
+function updateJoy(el,state,e){
+ const r=el.getBoundingClientRect(),cx=r.left+56,cy=r.top+56,max=34;
+ let dx=e.clientX-cx,dy=e.clientY-cy,d=Math.hypot(dx,dy);
  if(d>max){dx*=max/d;dy*=max/d}
  state.x=dx/max;state.y=dy/max;
+ el.querySelector('.stick').style.transform='translate('+dx+'px,'+dy+'px)';
+}
+function releaseJoy(el,state,isMove,id){
+ if(el.dataset.id!==String(id))return;
+ state.x=state.y=0;el.querySelector('.stick').style.transform='translate(0,0)';el.classList.remove('active');delete el.dataset.id;
+ if(isMove)moveId=null;else lookId=null;
+}
+addEventListener('pointerdown',e=>{
+ if(e.pointerType==='mouse')return;
+ const isMove=e.clientX<innerWidth*.5;
+ if(isMove?moveId!==null:lookId!==null)return;
+ if(isMove)moveId=e.pointerId;else lookId=e.pointerId;
+ const el=isMove?moveJoy:lookJoy,state=isMove?move:look;
+ activateJoy(el,state,e.pointerId,e.clientX,e.clientY);updateJoy(el,state,e);
 });
+addEventListener('pointermove',e=>{
+ if(e.pointerId===moveId)updateJoy(moveJoy,move,e);
+ if(e.pointerId===lookId)updateJoy(lookJoy,look,e);
+});
+addEventListener('pointerup',e=>{releaseJoy(moveJoy,move,true,e.pointerId);releaseJoy(lookJoy,look,false,e.pointerId)});
+addEventListener('pointercancel',e=>{releaseJoy(moveJoy,move,true,e.pointerId);releaseJoy(lookJoy,look,false,e.pointerId)});
 
+let cameraYaw=0,cameraPitch=.38;
 const clock=new THREE.Clock();
 function animate(){
- requestAnimationFrame(animate);
- const dt=Math.min(clock.getDelta(),.05);
- let mx=left.x+(keys.d?1:0)-(keys.a?1:0);
- let mz=left.y+(keys.s?1:0)-(keys.w?1:0);
+ requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);
+ let mx=move.x+(keys.d?1:0)-(keys.a?1:0),mz=move.y+(keys.s?1:0)-(keys.w?1:0);
  const len=Math.hypot(mx,mz);if(len>1){mx/=len;mz/=len}
- const speed=9;
- player.position.x+=mx*speed*dt;player.position.z+=mz*speed*dt;
- player.position.x=THREE.MathUtils.clamp(player.position.x,-WORLD_W*.48,WORLD_W*.48);
- player.position.z=THREE.MathUtils.clamp(player.position.z,-WORLD_D*.48,WORLD_D*.48);
+ const speed=9;player.position.x+=mx*speed*dt;player.position.z+=mz*speed*dt;
+ player.position.x=THREE.MathUtils.clamp(player.position.x,-WORLD_W*.48,WORLD_W*.48);player.position.z=THREE.MathUtils.clamp(player.position.z,-WORLD_D*.48,WORLD_D*.48);
  player.position.y=terrainHeight(player.position.x,player.position.z)+.05;
  if(Math.hypot(mx,mz)>.05)player.rotation.y=Math.atan2(mx,mz);
+ cameraYaw-=look.x*.055;cameraPitch=THREE.MathUtils.clamp(cameraPitch-look.y*.025,.12,.85);
  const target=new THREE.Vector3(player.position.x,player.position.y+1.2,player.position.z);
- const camOffset=new THREE.Vector3(-Math.sin(right.x)*14,7+(-right.y)*7,Math.cos(right.x)*14);
- const desired=target.clone().add(camOffset);
- camera.position.lerp(desired,.12);camera.lookAt(target);
+ const dist=14,cp=Math.cos(cameraPitch);
+ const desired=target.clone().add(new THREE.Vector3(Math.sin(cameraYaw)*dist*cp,Math.sin(cameraPitch)*dist,Math.cos(cameraYaw)*dist*cp));
+ camera.position.lerp(desired,.16);camera.lookAt(target);
  renderer.render(scene,camera);
 }
 animate();
