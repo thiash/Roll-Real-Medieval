@@ -23,16 +23,27 @@ export function terrainHeight(x,z){
  const mountain=20*Math.pow(Math.max(0,Math.sin(x*.006-z*.004)),8);
  const valley=-18*Math.exp(-((x-120)**2+(z+30)**2)/95000);
  const riverDx=x-riverCenterX(z);
- const riverBed=-Math.max(0,1-Math.abs(riverDx)/18)**2*7;
- return continental+hills+ridge+mountain+valley-riverBed*-1-Math.max(0,mask-.72)*55;
+ const riverCarve=Math.max(0,1-Math.abs(riverDx)/18)**2*7;
+ return continental+hills+ridge+mountain+valley-riverCarve-Math.max(0,mask-.72)*55;
 }
 
+function biomeAt(x,z,y){
+ const riverDistance=Math.abs(x-riverCenterX(z));
+ const wet=riverDistance<95;
+ const forestNoise=Math.sin(x*.0027+z*.0039)+.55*Math.sin(x*.006-z*.004);
+ if(y>25)return 'highland';
+ if(y<0)return 'coast';
+ if(wet)return 'wetland';
+ if(forestNoise>.55)return 'forest';
+ return 'meadow';
+}
 function biomeColor(y,x,z){
- const n=.5+.5*Math.sin(x*.031+z*.017)+.25*Math.sin(x*.071-z*.053);
- if(y>24)return new THREE.Color().setHSL(.28,.28,.30+.025*n);
- if(y>13)return new THREE.Color().setHSL(.29,.48,.34+.035*n);
- if(y<0)return new THREE.Color().setHSL(.30,.38,.28+.035*n);
- return new THREE.Color().setHSL(.30,.55,.31+.045*n);
+ const biome=biomeAt(x,z,y),n=.5+.5*Math.sin(x*.031+z*.017)+.25*Math.sin(x*.071-z*.053);
+ if(biome==='highland')return new THREE.Color().setHSL(.105,.20,.30+.035*n);
+ if(biome==='forest')return new THREE.Color().setHSL(.285,.48,.27+.035*n);
+ if(biome==='wetland')return new THREE.Color().setHSL(.31,.52,.30+.04*n);
+ if(biome==='coast')return new THREE.Color().setHSL(.19,.30,.35+.04*n);
+ return new THREE.Color().setHSL(.30,.56,.34+.055*n);
 }
 
 function addRiver(scene){
@@ -66,7 +77,7 @@ export function createWorld(scene){
  const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.98,metalness:0});
  const terrain=new THREE.Mesh(geo,terrainMat);terrain.receiveShadow=true;scene.add(terrain);
 
- const waterMat=new THREE.MeshStandardMaterial({color:0x2f7892,transparent:true,opacity:.9,roughness:.1,metalness:.02,side:THREE.DoubleSide});
+ const waterMat=new THREE.MeshStandardMaterial({color:0x2f7892,roughness:.16,metalness:.02,side:THREE.DoubleSide});
  function lake(x,y,z,w,d,rot=0){const g=new THREE.PlaneGeometry(w,d);g.rotateX(-Math.PI/2);g.rotateY(rot);const m=new THREE.Mesh(g,waterMat);m.position.set(x,y,z);m.receiveShadow=true;scene.add(m)}
  lake(0,-18,1120,3100,900);lake(180,-4,-40,520,70,-.25);lake(-360,-5,310,260,190,.55);
  const river=addRiver(scene);
@@ -80,7 +91,7 @@ export function createWorld(scene){
   new THREE.MeshStandardMaterial({color:0x416b35,roughness:1}),
   new THREE.MeshStandardMaterial({color:0x58733a,roughness:1})
  ];
- const treeCount=MOBILE?360:560,dummy=new THREE.Object3D();
+ const treeCount=MOBILE?380:620,dummy=new THREE.Object3D();
  const trunks=trunkMats.map(m=>new THREE.InstancedMesh(new THREE.CylinderGeometry(.16,.30,2.4,6),m,treeCount));
  const leaves=leafMats.map(m=>new THREE.InstancedMesh(new THREE.ConeGeometry(1.2,3.1,7),m,treeCount));
  let counts=[0,0,0];
@@ -96,7 +107,7 @@ export function createWorld(scene){
 
  const bushGeo=new THREE.IcosahedronGeometry(1,1);
  const bushMat=new THREE.MeshStandardMaterial({color:0x496f38,roughness:1});
- const bushes=new THREE.InstancedMesh(bushGeo,bushMat,MOBILE?180:300),rocks=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0),new THREE.MeshStandardMaterial({color:0x77756b,roughness:1}),MOBILE?120:220);
+ const bushes=new THREE.InstancedMesh(bushGeo,bushMat,MOBILE?240:400),rocks=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0),new THREE.MeshStandardMaterial({color:0x77756b,roughness:1}),MOBILE?150:260);
  let bc=0,rc=0;
  for(let i=0;i<(MOBILE?300:500);i++){
    const x=(Math.random()-.5)*2350,z=(Math.random()-.5)*1650,y=terrainHeight(x,z);
@@ -108,7 +119,7 @@ export function createWorld(scene){
 
  const grassGeo=new THREE.ConeGeometry(.045,.5,4);
  const grassMat=new THREE.MeshStandardMaterial({color:0x638b45,roughness:1});
- const grass=new THREE.InstancedMesh(grassGeo,grassMat,MOBILE?700:1300);let gc=0;
+ const grass=new THREE.InstancedMesh(grassGeo,grassMat,MOBILE?900:1600);let gc=0;
  for(let i=0;i<grass.count;i++){const x=(Math.random()-.5)*2400,z=(Math.random()-.5)*1700,y=terrainHeight(x,z);if(y<0||Math.abs(x-riverCenterX(z))<22)continue;const s=.5+Math.random()*1.4;dummy.position.set(x,y+.25*s,z);dummy.scale.set(s*.7,s,s*.7);dummy.rotation.y=Math.random()*Math.PI;dummy.updateMatrix();grass.setMatrixAt(gc++,dummy.matrix);}
  grass.count=gc;scene.add(grass);
 
