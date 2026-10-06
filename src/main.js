@@ -21,7 +21,7 @@ let cameraYaw=0,cameraPitch=.38;const clock=new THREE.Clock();const target=new T
 function animate(){
  requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);
  updatePlayer(player,controls.move,keys,dt);updateWorld(world,clock.elapsedTime);
- cameraYaw-=controls.look.x*.055;cameraPitch=THREE.MathUtils.clamp(cameraPitch+controls.look.y*.025,.12,.85);
+ cameraYaw-=controls.look.x*.055;cameraPitch=THREE.MathUtils.clamp(cameraPitch-controls.look.y*.025,.12,.85);
  target.set(player.position.x,player.position.y+1.2,player.position.z);const dist=14,cp=Math.cos(cameraPitch);
  desired.set(target.x+Math.sin(cameraYaw)*dist*cp,target.y+Math.sin(cameraPitch)*dist,target.z+Math.cos(cameraYaw)*dist*cp);
  camera.position.lerp(desired,.16);camera.lookAt(target);renderer.render(scene,camera);
