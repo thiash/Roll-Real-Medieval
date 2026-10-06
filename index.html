@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Roll Real Medieval</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#87b7d9;font-family:system-ui,sans-serif;touch-action:none}
+#game{position:fixed;inset:0}
+#hud{position:fixed;top:12px;left:12px;color:white;text-shadow:0 2px 4px #0008;z-index:5;pointer-events:none}
+#hud h1{font-size:18px;margin:0 0 4px}.hint{font-size:12px;opacity:.85}
+.joystick{position:fixed;width:112px;height:112px;border-radius:50%;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 0 25px #0002;z-index:10;display:none;pointer-events:none}
+.stick{position:absolute;width:46px;height:46px;left:33px;top:33px;border-radius:50%;background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.5);box-shadow:0 2px 8px #0004}
+@media (pointer:coarse){.joystick{display:block}.joystick.fixed{bottom:24px}.left.fixed{left:24px}.right.fixed{right:24px}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud"><h1>Roll Real Medieval</h1><div class="hint">3D-Welt · Touch-Steuerung</div></div>
+<div id="leftJoy" class="joystick left fixed"><div class="stick"></div></div>
+<div id="rightJoy" class="joystick right fixed"><div class="stick"></div></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x8fc5e8);
+scene.fog=new THREE.Fog(0x8fc5e8,90,260);
+
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,500);
+camera.position.set(0,7,11);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.getElementById('game').appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xdff2ff,0x5b4632,2.2));
+const sun=new THREE.DirectionalLight(0xfff3d0,3);
+sun.position.set(-80,120,60);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+scene.add(sun);
+
+const size=220, segments=100;
+const geo=new THREE.PlaneGeometry(size,size,segments,segments);
+geo.rotateX(-Math.PI/2);
+const pos=geo.attributes.position;
+function terrainHeight(x,z){
+  const hills=Math.sin(x*.055)*4+Math.cos(z*.047)*3;
+  const ridges=Math.sin((x+z)*.025)*5+Math.cos((x-z)*.035)*2.5;
+  const mountains=Math.max(0,Math.sin(x*.018+z*.012))*9;
+  const valley=-Math.exp(-((x-22)**2+(z+5)**2)/700)*8;
+  return hills+ridges+mountains+valley;
+}
+for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i);pos.setY(i,terrainHeight(x,z));}
+geo.computeVertexNormals();
+const terrain=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0x4f8b4a,roughness:1}));
+terrain.receiveShadow=true;scene.add(terrain);
+
+const waterMat=new THREE.MeshStandardMaterial({color:0x3b91c2,transparent:true,opacity:.68,roughness:.15,metalness:.05});
+function water(x,y,z,w,d,rot=0){
+ const g=new THREE.PlaneGeometry(w,d,1,1);g.rotateX(-Math.PI/2);g.rotateY(rot);
+ const m=new THREE.Mesh(g,waterMat);m.position.set(x,y,z);m.receiveShadow=true;scene.add(m);return m;
+}
+water(18,0.2,-8,65,8,-.25);
+water(-38,-1.0,34,28,20,.55);
+water(0,-3.2,82,150,45,0);
+
+const trunkMat=new THREE.MeshStandardMaterial({color:0x65452d});
+const leafMat=new THREE.MeshStandardMaterial({color:0x315f36});
+function tree(x,z,s=1){
+ const y=terrainHeight(x,z);
+ const t=new THREE.Mesh(new THREE.CylinderGeometry(.18*s,.28*s,2.2*s,7),trunkMat);
+ t.position.set(x,y+1.1*s,z);t.castShadow=true;scene.add(t);
+ const c=new THREE.Mesh(new THREE.ConeGeometry(1.25*s,3*s,8),leafMat);
+ c.position.set(x,y+3*s,z);c.castShadow=true;scene.add(c);
+}
+for(let i=0;i<55;i++){
+ const x=(Math.random()-.5)*180,z=(Math.random()-.5)*150;
+ if(Math.abs(z+8)<6 || (x>2&&x<34&&z>-18&&z<2))continue;
+ tree(x,z,.7+Math.random()*.7);
+}
+
+const player=new THREE.Group();
+const body=new THREE.Mesh(new THREE.CapsuleGeometry(.42,1.0,6,10),new THREE.MeshStandardMaterial({color:0x6e2730}));
+body.position.y=1.15;body.castShadow=true;player.add(body);
+const head=new THREE.Mesh(new THREE.SphereGeometry(.34,12,8),new THREE.MeshStandardMaterial({color:0xd39a72}));
+head.position.y=2.0;head.castShadow=true;player.add(head);
+player.position.set(0,terrainHeight(0,0)+.05,0);scene.add(player);
+
+const keys={};addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+const left={x:0,y:0},right={x:0,y:0};let activeLeft=null,activeRight=null;
+function bindJoy(el,state,isLeft){
+ const stick=el.querySelector('.stick');
+ function set(e){
+   const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+   let dx=e.clientX-cx,dy=e.clientY-cy;const max=34,d=Math.hypot(dx,dy);
+   if(d>max){dx*=max/d;dy*=max/d}
+   state.x=dx/max;state.y=dy/max;
+   stick.style.transform=`translate(${dx}px,${dy}px)`;
+ }
+ el.addEventListener('pointerdown',e=>{el.setPointerCapture(e.pointerId);if(isLeft)activeLeft=e.pointerId;else activeRight=e.pointerId;set(e)});
+ el.addEventListener('pointermove',e=>{if(e.pointerId===(isLeft?activeLeft:activeRight))set(e)});
+ const reset=e=>{if(e.pointerId===(isLeft?activeLeft:activeRight)){state.x=state.y=0;stick.style.transform='translate(0,0)';}};
+ el.addEventListener('pointerup',reset);el.addEventListener('pointercancel',reset);
+}
+bindJoy(document.getElementById('leftJoy'),left,true);bindJoy(document.getElementById('rightJoy'),right,false);
+
+const clock=new THREE.Clock();
+function animate(){
+ requestAnimationFrame(animate);
+ const dt=Math.min(clock.getDelta(),.05);
+ let mx=left.x+(keys.d?1:0)-(keys.a?1:0);
+ let mz=left.y+(keys.s?1:0)-(keys.w?1:0);
+ const len=Math.hypot(mx,mz);if(len>1){mx/=len;mz/=len}
+ const speed=9;
+ player.position.x+=mx*speed*dt;player.position.z+=mz*speed*dt;
+ player.position.x=THREE.MathUtils.clamp(player.position.x,-100,100);
+ player.position.z=THREE.MathUtils.clamp(player.position.z,-100,100);
+ player.position.y=terrainHeight(player.position.x,player.position.z)+.05;
+ if(Math.hypot(mx,mz)>.05)player.rotation.y=Math.atan2(mx,mz);
+ const target=new THREE.Vector3(player.position.x,player.position.y+1.2,player.position.z);
+ const camOffset=new THREE.Vector3(-Math.sin(right.x)*10,5.5+(-right.y)*5,Math.cos(right.x)*10);
+ camOffset.applyAxisAngle(new THREE.Vector3(1,0,0),THREE.MathUtils.clamp(right.y,-.6,.6)*.35);
+ const desired=target.clone().add(camOffset);
+ camera.position.lerp(desired,.12);camera.lookAt(target);
+ renderer.render(scene,camera);
+}
+animate();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body>
+</html>
